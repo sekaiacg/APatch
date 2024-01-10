@@ -439,3 +439,4 @@ SERVICED=$NVBASE/service.d
 # Some modules dependents on this
 export MAGISK_VER=26.4.4
 export MAGISK_VER_CODE=26404
+export APD_VER=$(cat $NVBASE/ap/version)
