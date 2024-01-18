@@ -170,7 +170,7 @@ fun StartPatch(showDialog: MutableState<Boolean>, navigator: DestinationsNavigat
         }
         val data = it.data ?: return@rememberLauncherForActivityResult
         val uri = data.data ?: return@rememberLauncherForActivityResult
-        navigator.navigate(PatchScreenDestination(uri, key))
+        navigator.navigate(PatchScreenDestination(uri, key, true))
     }
 
     AlertDialog(
@@ -410,17 +410,35 @@ private fun KStatusCard(kpState: APApplication.State, navigator: DestinationsNav
                         )
                     }
                 }
-                if (kpState.equals(APApplication.State.KERNELPATCH_NEED_UPDATE) && isDirectInstallAvailable()) {
+                if (!kpState.equals(APApplication.State.UNKNOWN_STATE) && isDirectInstallAvailable()) {
                     Column (modifier = Modifier
                         .align(Alignment.CenterVertically)
                     ) {
                         Button(
                             onClick = {
-                                APApplication.installKpatch()
-                                navigator.navigate(PatchScreenDestination(null, apApp.getSuperKey()))
+                                when {
+                                    kpState.equals(APApplication.State.KERNELPATCH_NEED_UPDATE) -> {
+                                        APApplication.installKpatch()
+                                        navigator.navigate(PatchScreenDestination(null, apApp.getSuperKey(), true))
+                                    }
+                                    else -> {
+                                        APApplication.uninstallKpatch()
+                                        navigator.navigate(PatchScreenDestination(null, apApp.getSuperKey(), false))
+                                    }
+                                }
                             },
                             content = {
-                                Text(text = stringResource(id = R.string.home_ap_cando_update), color = Color.Black)
+                                when {
+                                    kpState.equals(APApplication.State.KERNELPATCH_NEED_UPDATE) -> {
+                                        Text(text = stringResource(id = R.string.home_ap_cando_update), color = Color.Black)
+                                    }
+                                    kpState.equals(APApplication.State.KERNELPATCH_UNINSTALLING) -> {
+                                        Icon(Icons.Outlined.Cached, contentDescription = "busy")
+                                    }
+                                    else -> {
+                                        Text(text = stringResource(id = R.string.home_ap_cando_uninstall), color = Color.Black)
+                                    }
+                                }
                             }
                         )
                     }

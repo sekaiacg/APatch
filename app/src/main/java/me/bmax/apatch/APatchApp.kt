@@ -28,6 +28,7 @@ class APApplication : Application() {
         UNKNOWN_STATE,
         KERNELPATCH_INSTALLED,
         KERNELPATCH_NEED_UPDATE,
+        KERNELPATCH_UNINSTALLING,
         ANDROIDPATCH_READY,
         ANDROIDPATCH_INSTALLED,
         ANDROIDPATCH_INSTALLING,
@@ -77,6 +78,16 @@ class APApplication : Application() {
 
         var kPatchVersion: String = ""
         var aPatchVersion: Int = 0
+
+        fun uninstallKpatch() {
+            if (_kpStateLiveData.value != State.KERNELPATCH_INSTALLED) return
+            _kpStateLiveData.value = State.KERNELPATCH_UNINSTALLING
+
+            // TODO: should we remove ${KPATCH_PATH} too?
+
+            Log.d(TAG, "KPatch uninstalled ...")
+            _kpStateLiveData.postValue(State.UNKNOWN_STATE)
+        }
 
         fun installKpatch() {
             if (_kpStateLiveData.value != State.KERNELPATCH_NEED_UPDATE) return

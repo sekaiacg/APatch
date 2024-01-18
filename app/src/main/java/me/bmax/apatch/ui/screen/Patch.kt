@@ -43,25 +43,28 @@ import java.util.*
 
 @Composable
 @Destination
-fun PatchScreen(navigator: DestinationsNavigator, uri: Uri?, superKey: String) {
+fun PatchScreen(navigator: DestinationsNavigator, uri: Uri?, superKey: String, isInstall: Boolean) {
     var text by remember { mutableStateOf("") }
     var showFloatAction by remember { mutableStateOf(false) }
     val scrollState = rememberScrollState()
     val scope = rememberCoroutineScope()
+
+    val logCallback: CallbackList<String> = object : CallbackList<String>() {
+        override fun onAddElement(e: String?) {
+            e ?: return
+            text += e
+            Log.d(TAG, e)
+            text += '\n'
+        }
+    }
+
     LaunchedEffect(Unit) {
         if (text.isNotEmpty()) {
             return@LaunchedEffect
         }
         withContext(Dispatchers.IO) {
-            val ret = patchBootimg(uri, superKey, object : CallbackList<String>() {
-                override fun onAddElement(e: String?) {
-                    e ?: return
-                    text += e
-                    Log.d(TAG, e)
-                    text += '\n'
-                }
-            })
-            if(ret && uri == null) {
+            val ret = if (isInstall) patchBootimg(uri, superKey, logCallback) else unpatchBootimg(logCallback)
+            if (ret && uri == null) {
                 showFloatAction = true
             }
         }
@@ -147,6 +150,12 @@ fun InputStream.writeTo(file: File) = copyAndClose(file.outputStream())
 
 private fun InputStream.copyAndCloseOut(out: OutputStream) = out.use { copyTo(it) }
 
+fun isDirectInstallAvailable(): Boolean {
+    val backupDir: ExtendedFile = FileSystemManager.getLocal().getFile(apApp.filesDir.parent, "backup")
+    val origBoot = backupDir.getChildFile("boot.img")
+    return origBoot.exists()
+}
+
 fun patchBootimg(uri: Uri?, superKey: String, logs: MutableList<String>): Boolean {
     var outPath: File? = null
     var srcBoot: ExtendedFile? = null
@@ -183,7 +192,7 @@ fun patchBootimg(uri: Uri?, superKey: String, logs: MutableList<String>): Boolea
     }
 
     // Extract scripts
-    for (script in listOf("boot_patch.sh", "util_functions.sh", "kpimg")) {
+    for (script in listOf("boot_patch.sh", "boot_unpatch.sh", "util_functions.sh", "kpimg")) {
         val dest = File(patchDir, script)
         apApp.assets.open(script).writeTo(dest)
     }
@@ -205,10 +214,10 @@ fun patchBootimg(uri: Uri?, superKey: String, logs: MutableList<String>): Boolea
     val newBootFile = patchDir.getChildFile("new-boot.img")
     if (newBootFile.exists()) {
         if (uri == null) {
-            logs.add(" Boot patch was successful")
+            logs.add(" Patch was successful")
         } else {
             val outDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-            if(!outDir.exists()) outDir.mkdirs()
+            if (!outDir.exists()) outDir.mkdirs()
             outPath = File(outDir, outFilename)
 
             val inputUri = UriUtils.getUriForFile(newBootFile)
@@ -237,8 +246,35 @@ fun patchBootimg(uri: Uri?, superKey: String, logs: MutableList<String>): Boolea
     return succ
 }
 
-fun isDirectInstallAvailable(): Boolean {
+fun unpatchBootimg(logs: MutableList<String>): Boolean {
+    val patchDir: ExtendedFile = FileSystemManager.getLocal().getFile(apApp.filesDir.parent, "patch")
     val backupDir: ExtendedFile = FileSystemManager.getLocal().getFile(apApp.filesDir.parent, "backup")
     val origBoot = backupDir.getChildFile("boot.img")
-    return origBoot.exists()
+
+    var succ = true
+    if (patchDir.exists() && origBoot.exists()) {
+        // Ensure migration scenario
+        val script = "boot_unpatch.sh"
+        val tmp = patchDir.getChildFile(script)
+        if (!tmp.exists()) {
+            val dest = File(patchDir, script)
+            apApp.assets.open(script).writeTo(dest)
+        }
+
+        val cmds = arrayOf(
+            "cd $patchDir",
+            "sh boot_unpatch.sh",
+        )
+        val shell = getRootShell()
+        shell.newJob().add(*cmds).to(logs, logs).exec()
+        logs.add("****************************")
+        logs.add(" Unpatch was successful")
+    } else {
+        succ = false
+        logs.add("****************************")
+        logs.add(" Unpatch failed, no backup boot.img found")
+    }
+    logs.add("****************************")
+
+    return succ
 }
