@@ -83,7 +83,8 @@ class APApplication : Application() {
             if (_kpStateLiveData.value != State.KERNELPATCH_INSTALLED) return
             _kpStateLiveData.value = State.KERNELPATCH_UNINSTALLING
 
-            // TODO: should we remove ${KPATCH_PATH} too?
+            // Trigger APatch uninstallation as it won't work without KPatch anyway
+            uninstallApatch()
 
             Log.d(TAG, "KPatch uninstalled ...")
             _kpStateLiveData.postValue(State.UNKNOWN_STATE)
@@ -121,7 +122,11 @@ class APApplication : Application() {
                 shell.newJob().add(*cmds).to(logCallback, logCallback).exec()
 
                 Log.d(TAG, "APatch uninstalled...")
-                _apStateLiveData.postValue(State.ANDROIDPATCH_READY)
+                if (_kpStateLiveData.value == State.UNKNOWN_STATE) {
+                    _apStateLiveData.postValue(State.UNKNOWN_STATE)
+                } else {
+                    _apStateLiveData.postValue(State.ANDROIDPATCH_READY)
+                }
             }
         }
 
